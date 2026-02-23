@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Sistema de Tarefas - Firebase</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').then(registration => {
+                // Monitora atualizações do Service Worker
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            // Nova versão disponível - mostra notificação
+                            if (confirm('Nova versão disponível! Deseja atualizar agora?')) {
+                                newWorker.postMessage({ type: 'SKIP_WAITING' });
+                                window.location.reload();
+                            }
+                        }
+                    });
+                });
+            });
+        }
+    </script>
+</head>
+<body>
+
+<div id="telaLogin" class="container">
+    <h2>Login Funcionário</h2>
+    <input type="email" id="emailLogin" placeholder="E-mail">
+    <input type="password" id="senhaLogin" placeholder="Senha">
+    <button onclick="fazerLogin()">Entrar</button>
+</div>
+
+<div id="sistema" class="container" style="display:none">
+    <p>Bem-vindo: <b id="usuarioLogado"></b> (<span id="cargoUsuario"></span>) 
+       <button onclick="fazerLogout()" style="width:auto; background:gray">Sair</button>
+    </p>
+    
+    <div id="secaoAdmin" style="display:none; background: #fff3cd; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+        <h3>Gerenciar Equipe (Admin)</h3>
+        
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <input type="text" id="novoUserNome" placeholder="Nome Completo">
+            <input type="email" id="novoUserEmail" placeholder="E-mail">
+            <input type="password" id="novoUserSenha" placeholder="Senha (mín. 6 carac.)">
+            <select id="novoUserCargo">
+                <option value="funcionario">Funcionário</option>
+                <option value="gerente">Gerente</option>
+                <option value="administrador">Administrador</option>
+            </select>
+            <button onclick="criarUsuarioCompleto()" style="background:#856404; width: auto;">Cadastrar</button>
+        </div>
+
+        <h4>Usuários com Acesso:</h4>
+        <ul id="listaUsuariosCadastrados" style="list-style: none; padding: 0;"></ul>
+    </div>
+
+    <div id="secaoCriarTarefa" style="display:none; margin-bottom: 30px;">
+        <h3>Delegar Nova Tarefa</h3>
+        
+        <input type="text" id="titulo" placeholder="Título da Tarefa">
+        <textarea id="descricao" placeholder="Detalhes do que deve ser feito..." rows="3"></textarea>
+
+        <div style="display: flex; gap: 10px;">
+            <div style="flex: 1;">
+                <label style="font-size: 12px; font-weight: bold;">Data de Entrega:</label>
+                <input type="date" id="dataEntrega">
+            </div>
+            <div style="flex: 1;">
+                <label style="font-size: 12px; font-weight: bold;">Urgência:</label>
+                <select id="urgencia">
+                    <option value="baixa">Baixa 🟢</option>
+                    <option value="media">Média 🟡</option>
+                    <option value="alta">Alta 🔴</option>
+                </select>
+            </div>
+        </div>
+
+        <label style="font-size: 12px; font-weight: bold;">Responsável:</label>
+        <select id="atribuidoPara">
+            <option value="">Selecione um funcionário...</option>
+        </select>
+        
+        <button onclick="salvarTarefa()" style="margin-top: 10px;">Enviar Tarefa</button>
+    </div>
+
+    <div style="margin-bottom: 32px;">
+        <h3>Minhas Tarefas / Painel</h3>
+    </div>
+    <div id="listaTarefas"></div>
+</div>
+
+<div id="modalSucesso" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;">
+    <div style="background:white; width:300px; margin:15% auto; padding:20px; border-radius:10px; text-align:center; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+        <div style="font-size: 50px; color: #28a745;">✓</div>
+        <h3>Tarefa Enviada!</h3>
+        <p>O colega já recebeu o aviso.</p>
+        <button onclick="fecharModal()" style="background:#28a745; width:100px;">OK</button>
+    </div>
+</div>
+
+<script type="module" src="script.js"></script>
+
+</body>
+</html>
