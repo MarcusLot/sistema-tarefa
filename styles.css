@@ -78,7 +78,7 @@ body {
 /* Dashboard de Status */
 .dashboard-stats {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 15px;
     margin-bottom: 30px;
 }
@@ -307,6 +307,7 @@ button:hover { opacity: 0.9; }
         width: 95%;
         padding: 20px;
         margin: 10px;
+        padding-bottom: 30px; /* Espaço extra para o teclado virtual */
     }
     
     input, select, button {
@@ -350,10 +351,24 @@ button:hover { opacity: 0.9; }
     border-radius: 6px;
     cursor: pointer;
     font-size: 14px;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .user-actions button:last-child {
     background: #ef4444;
+}
+
+/* Botões de ação nos cards de tarefa */
+.tarefa-card button {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 @media (max-width: 480px) {

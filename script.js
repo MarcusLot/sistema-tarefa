@@ -417,6 +417,29 @@ function carregarTarefas(meuEmail, cargo) {
     });
 }
 
+// Função para formatar datas de forma compacta em mobile
+function formatarDataMobile(dataString) {
+    const data = new Date(dataString);
+    const hoje = new Date();
+    const anoAtual = hoje.getFullYear();
+    const anoData = data.getFullYear();
+    
+    // Se for o ano atual, mostra apenas DD/MM
+    if (anoAtual === anoData) {
+        return data.toLocaleDateString('pt-BR', { 
+            day: '2-digit', 
+            month: '2-digit' 
+        });
+    }
+    
+    // Senão, mostra DD/MM/AA
+    return data.toLocaleDateString('pt-BR', { 
+        day: '2-digit', 
+        month: '2-digit',
+        year: '2-digit'
+    });
+}
+
 // Função para renderizar os cards de tarefas
 function renderizarCards(tarefas, container, meuEmail, cargo, ehConcluida) {
     container.innerHTML = '';
@@ -439,6 +462,9 @@ function renderizarCards(tarefas, container, meuEmail, cargo, ehConcluida) {
             btnConcluir = `<button onclick="concluirTarefa('${tarefa.id}')" style="background:var(--success); border:none; color:white; border-radius:8px; padding: 8px 12px; cursor:pointer;">✓</button>`;
         }
         
+        // Formata a data de forma compacta em mobile
+        const dataFormatada = window.innerWidth <= 600 ? formatarDataMobile(tarefa.dataEntrega) : tarefa.dataEntrega;
+        
         const card = `
             <div class="tarefa-card" style="border-left: 4px solid ${corUrgencia};">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -446,7 +472,7 @@ function renderizarCards(tarefas, container, meuEmail, cargo, ehConcluida) {
                         <h4 style="margin: 0 0 8px 0; color: #1e293b;">${tarefa.titulo}</h4>
                         <p style="margin: 0 0 8px 0; color: #64748b; font-size: 14px;">${tarefa.descricao || 'Sem descrição'}</p>
                         <div style="display: flex; gap: 10px; align-items: center; font-size: 12px;">
-                            <span style="background: #f1f5f9; padding: 4px 8px; border-radius: 4px;">📅 ${tarefa.dataEntrega}</span>
+                            <span style="background: #f1f5f9; padding: 4px 8px; border-radius: 4px;">📅 ${dataFormatada}</span>
                             <span style="background: ${corUrgencia}20; color: ${corUrgencia}; padding: 4px 8px; border-radius: 4px;">${tarefa.urgencia}</span>
                             <span style="background: #e0e7ff; color: #6366f1; padding: 4px 8px; border-radius: 4px;">👤 ${tarefa.atribuidoPara}</span>
                         </div>
