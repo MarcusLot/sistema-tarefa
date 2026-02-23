@@ -80,6 +80,81 @@ inputsLogin.forEach(input => {
 // Variável global para controle de exclusão
 let idParaExcluir = null;
 
+// Array para armazenar atividades recentes
+let atividadesRecentes = [];
+
+// Função para adicionar atividade ao feed
+function adicionarAtividade(tipo, titulo, responsavel) {
+    const atividade = {
+        tipo: tipo,
+        titulo: titulo,
+        responsavel: responsavel,
+        timestamp: Date.now()
+    };
+    
+    // Adiciona ao início do array
+    atividadesRecentes.unshift(atividade);
+    
+    // Mantém apenas as 3 mais recentes
+    if (atividadesRecentes.length > 3) {
+        atividadesRecentes = atividadesRecentes.slice(0, 3);
+    }
+    
+    // Atualiza o feed (apenas para admin/gerente)
+    if (cargoUsuarioAtual === 'administrador' || cargoUsuarioAtual === 'gerente') {
+        atualizarFeedAtividades();
+    }
+}
+
+// Função para renderizar o feed de atividades
+function atualizarFeedAtividades() {
+    const feedContainer = document.getElementById('feedAtividades');
+    const listaContainer = document.getElementById('listaAtividades');
+    
+    if (atividadesRecentes.length === 0) {
+        feedContainer.style.display = 'none';
+        return;
+    }
+    
+    feedContainer.style.display = 'block';
+    listaContainer.innerHTML = '';
+    
+    atividadesRecentes.forEach(atividade => {
+        const tempo = formatarTempoAtividade(atividade.timestamp);
+        const icone = atividade.tipo === 'concluida' ? '✅' : '📋';
+        const texto = atividade.tipo === 'concluida' 
+            ? `${atividade.responsavel} concluiu: ${atividade.titulo}`
+            : atividade.titulo;
+        
+        const item = `
+            <div style="background: #f8fafc; padding: 10px; border-radius: 8px; border-left: 3px solid #10b981; font-size: 13px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>${icone} ${texto}</span>
+                    <span style="color: #94a3b8; font-size: 11px;">${tempo}</span>
+                </div>
+            </div>
+        `;
+        
+        listaContainer.innerHTML += item;
+    });
+}
+
+// Função para formatar o tempo da atividade
+function formatarTempoAtividade(timestamp) {
+    const agora = Date.now();
+    const diferenca = agora - timestamp;
+    const minutos = Math.floor(diferenca / 60000);
+    
+    if (minutos < 1) return 'agora';
+    if (minutos < 60) return `há ${minutos}min`;
+    
+    const horas = Math.floor(minutos / 60);
+    if (horas < 24) return `há ${horas}h`;
+    
+    const dias = Math.floor(horas / 24);
+    return `há ${dias}d`;
+}
+
 // Função auxiliar para limpar o email (remover pontos)
 const formatarEmail = (email) => email.replace(/\./g, '_');
 let cargoUsuarioAtual = null;
@@ -594,16 +669,29 @@ function iniciarMonitorDeNotificacoes(meuEmail) {
         // REGRA: Se EU criei a tarefa e ela foi marcada como 'concluida'
         if (tarefa.criadoPor === meuEmail && tarefa.status === "concluida") {
             
-            // 1. Notificação Visual (Modal na tela do App)
+            // 1. Adiciona ao feed de atividades
+            adicionarAtividade('concluida', tarefa.titulo, tarefa.atribuidoPara);
+            
+            // 2. Dispara som de notificação
+            dispararAvisoSonoro();
+            
+            // 3. Notificação Visual (Modal na tela do App)
             mostrarSucesso(`Tarefa Concluída: "${tarefa.titulo}"`);
 
-            // 2. Notificação de Sistema (Balãozinho/Push)
+            // 4. Notificação de Sistema (Balãozinho/Push) com identificação
             if (Notification.permission === "granted") {
                 new Notification("Tarefa Concluída! ✅", {
-                    body: `O colaborador finalizou: ${tarefa.titulo}`,
+                    body: `O colaborador ${tarefa.atribuidoPara} finalizou: ${tarefa.titulo}`,
                     icon: "https://cdn-icons-png.flaticon.com/512/190/190411.png"
                 });
             }
+            
+            // 5. Destaque visual temporário no badge
+            const badgeConcluidas = document.getElementById('badgeConcluidas');
+            badgeConcluidas.classList.add('badge-atualizado');
+            setTimeout(() => {
+                badgeConcluidas.classList.remove('badge-atualizado');
+            }, 500);
         }
     });
 }
