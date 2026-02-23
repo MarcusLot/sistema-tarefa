@@ -2,22 +2,20 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Sistema de Tarefas - Firebase</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="manifest" href="manifest.json">
     <script>
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').then(registration => {
+            navigator.serviceWorker.register('sw.js').then(reg => {
                 // Monitora atualizações do Service Worker
-                registration.addEventListener('updatefound', () => {
-                    const newWorker = registration.installing;
+                reg.addEventListener('updatefound', () => {
+                    const newWorker = reg.installing;
                     newWorker.addEventListener('statechange', () => {
                         if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            // Nova versão disponível - mostra notificação
-                            if (confirm('Nova versão disponível! Deseja atualizar agora?')) {
-                                newWorker.postMessage({ type: 'SKIP_WAITING' });
-                                window.location.reload();
-                            }
+                            // Nova versão disponível - abre o modal de atualização
+                            document.getElementById('modalUpdate').style.display = 'flex';
                         }
                     });
                 });
@@ -66,21 +64,25 @@
     </div>
 
     <div style="margin-bottom: 20px;">
-    <h3 style="display: flex; align-items: center; gap: 10px;">
-        ⏳ Pendentes 
-        <span id="badgePendentes" class="badge status-pendente" style="font-size: 14px;">0</span>
-    </h3>
-    <div id="listaTarefasPendentes"></div>
+    <input type="text" id="inputBusca" placeholder="🔍 Pesquisar por título ou descrição..." oninput="filtrarTarefas()" style="width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #e2e8f0;">
+</div>
+
+<div class="secao-tarefas">
+    <div class="header-retratil" onclick="toggleSecao('listaTarefasPendentes', 'setaPendentes')">
+        <h3 style="margin:0;">⏳ Pendentes (<span id="badgePendentes">0</span>)</h3>
+        <span id="setaPendentes">▼</span>
+    </div>
+    <div id="listaTarefasPendentes" class="conteudo-retratil"></div>
 </div>
 
 <hr style="border: 0; border-top: 1px dashed #cbd5e1; margin: 40px 0;">
 
-<div style="opacity: 0.8;">
-    <h3 style="display: flex; align-items: center; gap: 10px; color: #64748b;">
-        ✅ Concluídas
-        <span id="badgeConcluidas" class="badge status-concluida" style="font-size: 14px;">0</span>
-    </h3>
-    <div id="listaTarefasConcluidas"></div>
+<div class="secao-tarefas">
+    <div class="header-retratil" onclick="toggleSecao('listaTarefasConcluidas', 'setaConcluidas')">
+        <h3 style="margin:0; color: #64748b;">✅ Concluídas (<span id="badgeConcluidas">0</span>)</h3>
+        <span id="setaConcluidas">▶</span>
+    </div>
+    <div id="listaTarefasConcluidas" class="conteudo-retratil" style="display:none;"></div>
 </div>
 </div>
 
@@ -167,6 +169,16 @@
         <div style="font-size: 50px; margin-bottom: 10px;">✅</div>
         <h3 id="mensagemSucesso">Dados atualizados com sucesso!</h3>
         <button onclick="fecharModal('modalSucesso')" style="background: #ddd; color: #333;">Fechar</button>
+    </div>
+</div>
+
+<!-- Modal de Atualização -->
+<div id="modalUpdate" class="modal-overlay" style="z-index: 3000;">
+    <div class="modal-content" style="text-align: center; border-top: 5px solid var(--primary);">
+        <div style="font-size: 50px; margin-bottom: 10px;">🚀</div>
+        <h3>Nova Versão Disponível!</h3>
+        <p>Atualizamos o sistema para você. Deseja aplicar agora?</p>
+        <button onclick="window.location.reload()" style="width: 100%; margin-top: 10px;">Atualizar Agora</button>
     </div>
 </div>
 

@@ -18,12 +18,8 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-// Adicione um link para um som de "ping" curto
-const somNotificacao = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-
-function dispararAvisoSonoro() {
-    somNotificacao.play().catch(e => console.log("Áudio bloqueado até interação do usuário"));
-}
+// ADICIONE ESTA LINHA AQUI (Global)
+let todasAsTarefasLocal = [];
 
 // Variáveis para instalação PWA
 let deferredPrompt;
@@ -156,6 +152,9 @@ onAuthStateChanged(auth, (user) => {
             document.getElementById('sistema').style.display = 'block';
             document.getElementById('usuarioLogado').innerText = nomeFinal;
             document.getElementById('cargoUsuario').innerText = cargoFinal;
+            
+            // Armazena o cargo atual para uso em outras funções
+            cargoUsuarioAtual = cargoFinal;
 
             // Ativa as funções de Admin se for o caso
             if (cargoFinal === 'administrador') {
@@ -275,14 +274,14 @@ function listarUsuariosParaAdmin() {
             const cargo = dados.cargo || "funcionario";
 
             listaContainer.innerHTML += `
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 14px;">
-                    <div>
-                        <div style="font-weight: 600;">${nomeExibir}</div>
-                        <div style="font-size: 11px; color: #64748b;">${emailOriginal} | ${cargo}</div>
+                <div class="user-item-mobile">
+                    <div class="user-info-text">
+                        <strong>${nomeExibir}</strong>
+                        <span>${emailOriginal} | ${cargo}</span>
                     </div>
-                    <div style="display: flex; gap: 5px;">
-                        <button onclick="prepararEdicao('${emailLimpo}')" style="background:#4f46e5; padding: 5px 8px; font-size: 12px;">✎</button>
-                        <button onclick="removerPermissao('${emailLimpo}')" style="background:#ef4444; padding: 5px 8px; font-size: 12px;">✕</button>
+                    <div class="user-actions">
+                        <button onclick="prepararEdicao('${emailLimpo}')">✎</button>
+                        <button onclick="removerPermissao('${emailLimpo}')">✕</button>
                     </div>
                 </div>`;
         });
@@ -401,55 +400,108 @@ function carregarTarefas(meuEmail, cargo) {
             }
         });
 
+        // Armazena todas as tarefas localmente para busca
+        todasAsTarefasLocal = [...tarefasPendentes, ...tarefasConcluidas];
+
         // Atualiza Badges do Dashboard e das Seções
         document.getElementById('countPendentes').innerText = tarefasPendentes.length;
         document.getElementById('countConcluidas').innerText = tarefasConcluidas.length;
         document.getElementById('badgePendentes').innerText = tarefasPendentes.length;
         document.getElementById('badgeConcluidas').innerText = tarefasConcluidas.length;
 
-        // Ordenação por Urgência (Apenas para as pendentes)
-        const pesoUrgencia = { 'alta': 3, 'media': 2, 'baixa': 1 };
-        tarefasPendentes.sort((a, b) => pesoUrgencia[b.urgencia] - pesoUrgencia[a.urgencia]);
-
-        // Renderização
+        // Renderização inicial (sem filtro)
         renderizarCards(tarefasPendentes, pendentesDiv, meuEmail, cargo, false);
         renderizarCards(tarefasConcluidas, concluidasDiv, meuEmail, cargo, true);
     });
 }
 
-// Função auxiliar para criar os cards
-function renderizarCards(lista, container, meuEmail, cargo, isConcluida) {
-    container.innerHTML = lista.length === 0 ? '<p style="color: #94a3b8; font-size: 14px;">Nenhuma tarefa nesta categoria.</p>' : "";
+// Função para renderizar os cards de tarefas
+function renderizarCards(tarefas, container, meuEmail, cargo, ehConcluida) {
+    container.innerHTML = '';
     
-    lista.forEach((tarefa) => {
-        const corUrgencia = {
-            'alta': '#ef4444',   // Vermelho
-            'media': '#f59e0b',  // Amarelo/Laranja
-            'baixa': '#10b981'   // Verde
-        };
+    tarefas.forEach(tarefa => {
+        // Determina a cor da urgência
+        let corUrgencia = '#10b981'; // verde por padrão
+        if (tarefa.urgencia === 'media') corUrgencia = '#f59e0b';
+        if (tarefa.urgencia === 'alta') corUrgencia = '#ef4444';
         
-        let btnConcluir = (!isConcluida && tarefa.atribuidoPara === meuEmail.toLowerCase())
-            ? `<button onclick="concluirTarefa('${tarefa.id}', '${tarefa.titulo}')" style="background:var(--success); padding: 5px 10px;">✓</button>` : "";
+        // Cria o botão de excluir apenas para admin/gerente
+        let btnExcluir = "";
+        if (cargo === 'administrador' || cargo === 'gerente') {
+            btnExcluir = `<button onclick="excluirTarefa('${tarefa.id}', '${tarefa.titulo}')" style="background:var(--danger); border:none; color:white; border-radius:8px; padding: 8px 12px; cursor:pointer;">✕</button>`;
+        }
         
-        let btnExcluir = (cargo === 'administrador' || cargo === 'gerente') 
-            ? `<button onclick="excluirTarefa('${tarefa.id}', '${tarefa.titulo}')" style="background:var(--danger); padding: 5px 10px;">✕</button>` : "";
-
-        container.innerHTML += `
-            <div class="tarefa fade-in" style="border-left: 6px solid ${isConcluida ? '#cbd5e1' : corUrgencia[tarefa.urgencia]}; opacity: ${isConcluida ? 0.7 : 1}">
-                <div style="flex: 1;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <strong style="text-decoration: ${isConcluida ? 'line-through' : 'none'}">${tarefa.titulo}</strong>
-                        ${!isConcluida ? `<span class="badge" style="background: ${corUrgencia[tarefa.urgencia]}; color: white;">${tarefa.urgencia.toUpperCase()}</span>` : ''}
+        // Cria o botão de concluir apenas para tarefas pendentes
+        let btnConcluir = "";
+        if (!ehConcluida && tarefa.atribuidoPara === meuEmail.toLowerCase()) {
+            btnConcluir = `<button onclick="concluirTarefa('${tarefa.id}')" style="background:var(--success); border:none; color:white; border-radius:8px; padding: 8px 12px; cursor:pointer;">✓</button>`;
+        }
+        
+        const card = `
+            <div class="tarefa-card" style="border-left: 4px solid ${corUrgencia};">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div style="flex: 1;">
+                        <h4 style="margin: 0 0 8px 0; color: #1e293b;">${tarefa.titulo}</h4>
+                        <p style="margin: 0 0 8px 0; color: #64748b; font-size: 14px;">${tarefa.descricao || 'Sem descrição'}</p>
+                        <div style="display: flex; gap: 10px; align-items: center; font-size: 12px;">
+                            <span style="background: #f1f5f9; padding: 4px 8px; border-radius: 4px;">📅 ${tarefa.dataEntrega}</span>
+                            <span style="background: ${corUrgencia}20; color: ${corUrgencia}; padding: 4px 8px; border-radius: 4px;">${tarefa.urgencia}</span>
+                            <span style="background: #e0e7ff; color: #6366f1; padding: 4px 8px; border-radius: 4px;">👤 ${tarefa.atribuidoPara}</span>
+                        </div>
                     </div>
-                    <p style="margin: 5px 0; font-size: 13px; color: #64748b;">${tarefa.descricao || ''}</p>
-                    <small style="color: #94a3b8;">📅 ${tarefa.dataEntrega ? tarefa.dataEntrega.split('-').reverse().join('/') : 'Sem data'} | 👤 ${tarefa.atribuidoPara}</small>
+                    <div style="display: flex; gap: 5px; margin-left: 10px;">
+                        ${btnConcluir}
+                        ${btnExcluir}
+                    </div>
                 </div>
-                <div style="display: flex; gap: 5px;">
-                    ${btnConcluir}
-                    ${btnExcluir}
-                </div>
-            </div>`;
+            </div>
+        `;
+        
+        container.innerHTML += card;
     });
+    
+    // Se não há tarefas, mostra mensagem
+    if (tarefas.length === 0) {
+        container.innerHTML = `<div style="text-align: center; color: #94a3b8; padding: 40px;">Nenhuma tarefa ${ehConcluida ? 'concluída' : 'pendente'} encontrada.</div>`;
+    }
+}
+
+// 1. Função para abrir/fechar seções
+window.toggleSecao = function(idLista, idSeta) {
+    const lista = document.getElementById(idLista);
+    const seta = document.getElementById(idSeta);
+    
+    if (lista.style.display === "none") {
+        lista.style.display = "block";
+        seta.innerText = "▼";
+    } else {
+        lista.style.display = "none";
+        seta.innerText = "▶";
+    }
+};
+
+// 2. Função de Busca/Filtro
+window.filtrarTarefas = function() {
+    const termo = document.getElementById('inputBusca').value.toLowerCase();
+    const meuEmail = auth.currentUser ? auth.currentUser.email : "";
+    const cargo = cargoUsuarioAtual || "funcionario";
+    
+    if (!termo) {
+        // Se não há termo, mostra todas as tarefas
+        renderizarCards(todasAsTarefasLocal.filter(t => t.status !== 'concluida'), document.getElementById('listaTarefasPendentes'), meuEmail, cargo, false);
+        renderizarCards(todasAsTarefasLocal.filter(t => t.status === 'concluida'), document.getElementById('listaTarefasConcluidas'), meuEmail, cargo, true);
+        return;
+    }
+    
+    const pendentesFiltradas = todasAsTarefasLocal.filter(t => 
+        t.status !== 'concluida' && (t.titulo.toLowerCase().includes(termo) || t.descricao.toLowerCase().includes(termo))
+    );
+    const concluidasFiltradas = todasAsTarefasLocal.filter(t => 
+        t.status === 'concluida' && (t.titulo.toLowerCase().includes(termo) || t.descricao.toLowerCase().includes(termo))
+    );
+    
+    renderizarCards(pendentesFiltradas, document.getElementById('listaTarefasPendentes'), meuEmail, cargo, false);
+    renderizarCards(concluidasFiltradas, document.getElementById('listaTarefasConcluidas'), meuEmail, cargo, true);
 };
 
 window.concluirTarefa = (id) => {
@@ -527,3 +579,9 @@ function iniciarMonitorDeNotificacoes(meuEmail) {
         }
     });
 }
+
+// Função para disparar som de notificação
+window.dispararAvisoSonoro = () => {
+    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+    audio.play().catch(e => console.log("Áudio aguardando interação..."));
+};

@@ -1,5 +1,6 @@
 // Mude esse número (v1, v2, v3...) sempre que atualizar o site
-const VERSION = 'v1.0.1';
+const VERSION = 'v1.0.3'; // Lembre de subir a versão aqui!
+const CACHE_NAME = 'tarefas-cache-' + VERSION;
 
 self.addEventListener('install', (event) => {
     self.skipWaiting(); // Força o novo Service Worker a ativar logo
@@ -12,7 +13,7 @@ self.addEventListener('activate', (event) => {
         caches.keys().then((cacheNames) => {
             return Promise.all(
                 cacheNames.map((cacheName) => {
-                    if (cacheName !== 'tarefas-cache-v1') {
+                    if (cacheName !== CACHE_NAME) {
                         return caches.delete(cacheName);
                     }
                 })
@@ -24,14 +25,13 @@ self.addEventListener('activate', (event) => {
     self.clients.claim();
 });
 
-// Escuta mensagens do cliente para forçar atualização
-self.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'SKIP_WAITING') {
-        self.skipWaiting();
-    }
-});
-
 self.addEventListener('fetch', (event) => {
+    // CORREÇÃO AQUI: Só tenta fazer cache se for método GET
+    // O Firebase e Logins usam POST/PUT e isso NÃO pode ir para o cache
+    if (event.request.method !== 'GET') {
+        return; 
+    }
+
     // Estratégia: Network First, com fallback para cache
     event.respondWith(
         fetch(event.request)
@@ -39,7 +39,7 @@ self.addEventListener('fetch', (event) => {
                 // Se a requisição funcionou, salva no cache
                 if (response.status === 200) {
                     const responseClone = response.clone();
-                    caches.open('tarefas-cache-v1').then((cache) => {
+                    caches.open(CACHE_NAME).then((cache) => {
                         cache.put(event.request, responseClone);
                     });
                 }
@@ -50,4 +50,11 @@ self.addEventListener('fetch', (event) => {
                 return caches.match(event.request);
             })
     );
+});
+
+// Escuta mensagens do cliente para forçar atualização
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
 });
