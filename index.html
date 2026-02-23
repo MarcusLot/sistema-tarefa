@@ -35,35 +35,77 @@
 </div>
 
 <div id="sistema" class="container" style="display:none">
-    <p>Bem-vindo: <b id="usuarioLogado"></b> (<span id="cargoUsuario"></span>) 
-       <button onclick="fazerLogout()" style="width:auto; background:gray">Sair</button>
-    </p>
-    
-    <div id="botoes-acao" class="botoes-acao">
-        <button onclick="abrirModal('modalUser')">+ Novo Funcionário</button>
-        <button onclick="abrirModal('modalTarefa')" style="background: #6366f1;">+ Delegar Tarefa</button>
+    <header class="app-header">
+        <div class="user-info">
+            <span class="user-name" id="usuarioLogado">Marcus Lot</span>
+            <span class="user-role" id="cargoUsuario">Administrador</span>
+        </div>
+        <button onclick="logout()" class="btn-sair">Sair</button>
+    </header>
+
+    <div id="botoes-acao" class="actions-bar" style="display:none;">
+        <button onclick="abrirModal('modalUser')" class="btn-secondary">+ Novo Funcionário</button>
+        <button onclick="abrirModal('modalTarefa')" class="btn-primary">+ Delegar Tarefa</button>
     </div>
 
-    <div style="margin-bottom: 32px;">
-        <h3>Minhas Tarefas / Painel</h3>
+    <div id="pwa-install-container" style="display: none; margin-bottom: 20px;">
+        <button onclick="instalarPWA()" class="btn-primary" style="width: 100%; background: #059669; display: flex; align-items: center; justify-content: center; gap: 10px;">
+            <span>📥 Instalar Aplicativo no Celular</span>
+        </button>
     </div>
-    <div id="listaTarefas"></div>
+
+    <div class="dashboard-stats">
+        <div class="stat-card">
+            <span class="stat-label">Pendentes</span>
+            <span class="stat-value" id="countPendentes">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Concluídas</span>
+            <span class="stat-value" id="countConcluidas">0</span>
+        </div>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+    <h3 style="display: flex; align-items: center; gap: 10px;">
+        ⏳ Pendentes 
+        <span id="badgePendentes" class="badge status-pendente" style="font-size: 14px;">0</span>
+    </h3>
+    <div id="listaTarefasPendentes"></div>
+</div>
+
+<hr style="border: 0; border-top: 1px dashed #cbd5e1; margin: 40px 0;">
+
+<div style="opacity: 0.8;">
+    <h3 style="display: flex; align-items: center; gap: 10px; color: #64748b;">
+        ✅ Concluídas
+        <span id="badgeConcluidas" class="badge status-concluida" style="font-size: 14px;">0</span>
+    </h3>
+    <div id="listaTarefasConcluidas"></div>
+</div>
 </div>
 
 <!-- Modal de Gerenciar Funcionário -->
 <div id="modalUser" class="modal-overlay">
-    <div class="modal-content">
+    <div class="modal-content" style="max-height: 80vh; overflow-y: auto;">
         <button class="btn-fechar" onclick="fecharModal('modalUser')">&times;</button>
-        <h3>Gerenciar Funcionário</h3>
-        <input type="text" id="novoUserNome" placeholder="Nome Completo">
-        <input type="email" id="novoUserEmail" placeholder="E-mail">
-        <input type="password" id="novoUserSenha" placeholder="Senha (vazio para editar)">
-        <select id="novoUserCargo">
-            <option value="funcionario">Funcionário</option>
-            <option value="gerente">Gerente</option>
-            <option value="administrador">Administrador</option>
-        </select>
-        <button onclick="criarUsuarioCompleto()" style="width: 100%;">Salvar Dados</button>
+        <h3>Gerenciar Funcionários</h3>
+        
+        <div style="background: #f8fafc; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+            <input type="text" id="novoUserNome" placeholder="Nome Completo">
+            <input type="email" id="novoUserEmail" placeholder="E-mail">
+            <input type="password" id="novoUserSenha" placeholder="Senha (vazio para editar)">
+            <select id="novoUserCargo">
+                <option value="funcionario">Funcionário</option>
+                <option value="gerente">Gerente</option>
+                <option value="administrador">Administrador</option>
+            </select>
+            <button onclick="criarUsuarioCompleto()" style="width: 100%;">Salvar Dados</button>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+        <h4>Equipe Cadastrada</h4>
+        <div id="listaUsuariosAdmin">
+        </div>
     </div>
 </div>
 
@@ -83,7 +125,10 @@
             <option value="alta">Alta 🔴</option>
         </select>
         <label>Responsável:</label>
-        <select id="atribuidoPara"></select>
+        <select id="atribuidoPara" onchange="mostrarEmailSelecionado()">
+            <option value="">Selecione um funcionário...</option>
+        </select>
+        <div id="emailAuxiliar" style="font-size: 12px; color: #6366f1; margin-top: -10px; margin-bottom: 10px; font-weight: 500;"></div>
         <button onclick="salvarTarefa()" style="width: 100%; margin-top: 10px;">Enviar Tarefa</button>
     </div>
 </div>
@@ -98,6 +143,20 @@
         <div style="display: flex; gap: 10px; margin-top: 20px;">
             <button id="btnConfirmarExcluir" style="background: var(--danger); flex: 1;">Sim, Excluir</button>
             <button onclick="fecharModal('modalConfirmacao')" style="background: #eee; color: #333; flex: 1;">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Sair -->
+<div id="modalSair" class="modal-overlay">
+    <div class="modal-content" style="text-align: center;">
+        <div style="font-size: 50px; color: #64748b;">🚪</div>
+        <h3>Deseja sair do sistema?</h3>
+        <p style="color: #666;">Sua sessão será encerrada neste dispositivo.</p>
+        
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button id="btnConfirmarSair" style="background: #ef4444; flex: 1;">Sim, Sair</button>
+            <button onclick="fecharModal('modalSair')" style="background: #f1f5f9; color: #333; flex: 1;">Cancelar</button>
         </div>
     </div>
 </div>

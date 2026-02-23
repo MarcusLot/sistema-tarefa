@@ -18,6 +18,58 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
+// Adicione um link para um som de "ping" curto
+const somNotificacao = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+
+function dispararAvisoSonoro() {
+    somNotificacao.play().catch(e => console.log("Áudio bloqueado até interação do usuário"));
+}
+
+// Variáveis para instalação PWA
+let deferredPrompt;
+const installContainer = document.getElementById('pwa-install-container');
+
+// 1. Escuta o evento 'beforeinstallprompt' (Android/PC)
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Impede que o navegador mostre o banner padrão
+    e.preventDefault();
+    // Salva o evento para ser disparado depois
+    deferredPrompt = e;
+    // Mostra o nosso botão customizado
+    installContainer.style.display = 'block';
+});
+
+// 2. Função disparada pelo clique no botão
+window.instalarPWA = async () => {
+    if (!deferredPrompt) return;
+    
+    // Mostra o prompt de instalação
+    deferredPrompt.prompt();
+    
+    // Espera a resposta do usuário
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`Usuário respondeu à instalação: ${outcome}`);
+    
+    // Limpa o prompt para não ser usado de novo
+    deferredPrompt = null;
+    installContainer.style.display = 'none';
+};
+
+// 3. Esconde o botão se o app já estiver instalado
+window.addEventListener('appinstalled', () => {
+    installContainer.style.display = 'none';
+    deferredPrompt = null;
+    mostrarSucesso("Aplicativo instalado com sucesso!");
+});
+
+// 4. Detecta iOS e mostra instrução especial
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+
+if (isIOS && !isStandalone) {
+    console.log("Usuário de iPhone detectado. Sugerir instalação via Safari.");
+}
+
 // Função para permitir login ao apertar Enter
 const inputsLogin = [document.getElementById('emailLogin'), document.getElementById('senhaLogin')];
 
@@ -61,6 +113,21 @@ window.solicitarNotificacao = () => {
 };
 
 window.fazerLogout = () => signOut(auth);
+
+// Função que apenas abre o modal
+window.logout = function() {
+    abrirModal('modalSair');
+};
+
+// Função que realmente desloga quando clicar em "Sim, Sair" no modal
+document.getElementById('btnConfirmarSair').onclick = function() {
+    signOut(auth).then(() => {
+        fecharModal('modalSair');
+        // O onAuthStateChanged vai detectar o logout e mostrar a tela de login
+    }).catch((error) => {
+        alert("Erro ao sair: " + error.message);
+    });
+};
 
 // --- MONITORAR USUÁRIO LOGADO ---
 onAuthStateChanged(auth, (user) => {
@@ -195,27 +262,29 @@ window.prepararEdicao = function(emailLimpo) {
 
 // --- ATUALIZAR A LISTA DE USUÁRIOS NA TELA ---
 function listarUsuariosParaAdmin() {
+    const listaContainer = document.getElementById('listaUsuariosAdmin');
+    
     onValue(ref(db, 'usuarios'), (snapshot) => {
-        const lista = document.getElementById('listaUsuariosCadastrados');
-        lista.innerHTML = "";
+        listaContainer.innerHTML = ""; // Limpa a lista antes de carregar
+        
         snapshot.forEach((child) => {
+            const dados = child.val();
             const emailLimpo = child.key;
             const emailOriginal = emailLimpo.replace(/_/g, '.');
-            const dados = child.val();
-            const nomeExibir = dados.nome || "Sem Nome (Editar ->)";
-            const cargo = dados.cargo || dados;
+            const nomeExibir = dados.nome || emailOriginal;
+            const cargo = dados.cargo || "funcionario";
 
-    lista.innerHTML += `
-    <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9;">
-            <div>
-                <div style="font-weight: 600;">${nomeExibir}</div>
-                <div style="font-size: 12px; color: #64748b;">${emailOriginal} • ${cargo}</div>
-            </div>
-            <div style="display: flex; gap: 8px;">
-                <button onclick="prepararEdicao('${emailLimpo}')" style="background:#f1f5f9; color:#475569; padding: 6px 12px;">Editar</button>
-                <button onclick="removerPermissao('${emailLimpo}')" style="background:#fee2e2; color:#b91c1c; padding: 6px 12px;">Remover</button>
-            </div>
-        </div>`;
+            listaContainer.innerHTML += `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 14px;">
+                    <div>
+                        <div style="font-weight: 600;">${nomeExibir}</div>
+                        <div style="font-size: 11px; color: #64748b;">${emailOriginal} | ${cargo}</div>
+                    </div>
+                    <div style="display: flex; gap: 5px;">
+                        <button onclick="prepararEdicao('${emailLimpo}')" style="background:#4f46e5; padding: 5px 8px; font-size: 12px;">✎</button>
+                        <button onclick="removerPermissao('${emailLimpo}')" style="background:#ef4444; padding: 5px 8px; font-size: 12px;">✕</button>
+                    </div>
+                </div>`;
         });
     });
 }
@@ -230,16 +299,32 @@ function carregarListaFuncionarios() {
         
         snapshot.forEach((child) => {
             const dados = child.val();
-            const emailOriginal = child.key.replace(/_/g, '.');
-            
-            // Cria a opção: <option value="email@adm.com">Nome do Funcionario</option>
+            const emailOriginal = child.key.replace(/_/g, '.'); // Converte admin_gmail_com de volta
+            const nomeExibir = dados.nome || emailOriginal;
+
+            // Criamos a opção: O texto é o Nome, o Valor é o E-mail
             const option = document.createElement('option');
             option.value = emailOriginal;
-            option.textContent = dados.nome || emailOriginal; // Mostra o nome, se não tiver, mostra o email
+            option.text = nomeExibir;
             select.appendChild(option);
         });
     });
 }
+
+// Função para mostrar e-mail selecionado
+window.mostrarEmailSelecionado = function() {
+    const select = document.getElementById('atribuidoPara');
+    const emailDiv = document.getElementById('emailAuxiliar');
+    
+    // O valor do select é o e-mail (ex: funcionario@gmail.com)
+    const email = select.value;
+    
+    if (email) {
+        emailDiv.innerText = `Destinatário: ${email}`;
+    } else {
+        emailDiv.innerText = "";
+    }
+};
 
 // Funções para controlar os Modais
 window.abrirModal = function(id) {
@@ -296,63 +381,86 @@ window.salvarTarefa = function() {
 // --- CARREGAR TAREFAS COM REGRAS DE BOTÕES ---
 function carregarTarefas(meuEmail, cargo) {
     onValue(ref(db, 'tarefas'), (snapshot) => {
-        const listaDiv = document.getElementById('listaTarefas');
-        const tarefasArray = [];
+        const pendentesDiv = document.getElementById('listaTarefasPendentes');
+        const concluidasDiv = document.getElementById('listaTarefasConcluidas');
+        
+        const tarefasPendentes = [];
+        const tarefasConcluidas = [];
 
-        // 1. Converte o snapshot para um Array para podermos ordenar
         snapshot.forEach((child) => {
             const tarefa = child.val();
             tarefa.id = child.key;
             
-            // Filtro de permissão (Admin vê tudo, Funcionario vê as dele)
+            // Filtro de Visibilidade (Mesma lógica sua)
             if (cargo === 'administrador' || cargo === 'gerente' || tarefa.atribuidoPara === meuEmail.toLowerCase()) {
-                tarefasArray.push(tarefa);
+                if (tarefa.status === 'concluida') {
+                    tarefasConcluidas.push(tarefa);
+                } else {
+                    tarefasPendentes.push(tarefa);
+                }
             }
         });
 
-        // 2. Ordena o Array (Alta = 3, Media = 2, Baixa = 1)
+        // Atualiza Badges do Dashboard e das Seções
+        document.getElementById('countPendentes').innerText = tarefasPendentes.length;
+        document.getElementById('countConcluidas').innerText = tarefasConcluidas.length;
+        document.getElementById('badgePendentes').innerText = tarefasPendentes.length;
+        document.getElementById('badgeConcluidas').innerText = tarefasConcluidas.length;
+
+        // Ordenação por Urgência (Apenas para as pendentes)
         const pesoUrgencia = { 'alta': 3, 'media': 2, 'baixa': 1 };
-        tarefasArray.sort((a, b) => pesoUrgencia[b.urgencia] - pesoUrgencia[a.urgencia]);
+        tarefasPendentes.sort((a, b) => pesoUrgencia[b.urgencia] - pesoUrgencia[a.urgencia]);
 
-        // 3. Renderiza na tela
-        listaDiv.innerHTML = "";
-        tarefasArray.forEach((tarefa) => {
-            const corUrgencia = {
-                'alta': '#ef4444',   // Vermelho
-                'media': '#f59e0b',  // Amarelo/Laranja
-                'baixa': '#10b981'   // Verde
-            };
-            
-            let botaoExcluir = (cargo === 'administrador' || cargo === 'gerente') 
-                ? `<button onclick="excluirTarefa('${tarefa.id}')" style="background:red; width:auto;">Excluir</button>` : "";
-            
-            let botaoConcluir = (tarefa.atribuidoPara === meuEmail.toLowerCase() && tarefa.status !== 'concluida')
-                ? `<button onclick="concluirTarefa('${tarefa.id}')" style="background:green; width:auto;">Concluir</button>` : "";
+        // Renderização
+        renderizarCards(tarefasPendentes, pendentesDiv, meuEmail, cargo, false);
+        renderizarCards(tarefasConcluidas, concluidasDiv, meuEmail, cargo, true);
+    });
+}
 
-            listaDiv.innerHTML += `
-                <div class="tarefa fade-in" style="border-left: 6px solid ${corUrgencia[tarefa.urgencia] || '#ccc'}">
-                    <div style="flex: 1;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <strong style="font-size: 16px;">${tarefa.titulo}</strong>
-                            <span class="badge" style="background: ${corUrgencia[tarefa.urgencia]}; color: white; border: 1px solid ${corUrgencia[tarefa.urgencia]}">
-                                ${tarefa.urgencia.toUpperCase()}
-                            </span>
-                        </div>
-                        <p style="margin: 8px 0; color: #475569; font-size: 14px;">${tarefa.descricao || ''}</p>
-                        <div style="font-size: 12px; color: #94a3b8;">
-                            📅 Entrega: ${tarefa.dataEntrega ? tarefa.dataEntrega.split('-').reverse().join('/') : 'Sem data'} | 👤 Para: ${tarefa.atribuidoPara}
-                        </div>
+// Função auxiliar para criar os cards
+function renderizarCards(lista, container, meuEmail, cargo, isConcluida) {
+    container.innerHTML = lista.length === 0 ? '<p style="color: #94a3b8; font-size: 14px;">Nenhuma tarefa nesta categoria.</p>' : "";
+    
+    lista.forEach((tarefa) => {
+        const corUrgencia = {
+            'alta': '#ef4444',   // Vermelho
+            'media': '#f59e0b',  // Amarelo/Laranja
+            'baixa': '#10b981'   // Verde
+        };
+        
+        let btnConcluir = (!isConcluida && tarefa.atribuidoPara === meuEmail.toLowerCase())
+            ? `<button onclick="concluirTarefa('${tarefa.id}', '${tarefa.titulo}')" style="background:var(--success); padding: 5px 10px;">✓</button>` : "";
+        
+        let btnExcluir = (cargo === 'administrador' || cargo === 'gerente') 
+            ? `<button onclick="excluirTarefa('${tarefa.id}', '${tarefa.titulo}')" style="background:var(--danger); padding: 5px 10px;">✕</button>` : "";
+
+        container.innerHTML += `
+            <div class="tarefa fade-in" style="border-left: 6px solid ${isConcluida ? '#cbd5e1' : corUrgencia[tarefa.urgencia]}; opacity: ${isConcluida ? 0.7 : 1}">
+                <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <strong style="text-decoration: ${isConcluida ? 'line-through' : 'none'}">${tarefa.titulo}</strong>
+                        ${!isConcluida ? `<span class="badge" style="background: ${corUrgencia[tarefa.urgencia]}; color: white;">${tarefa.urgencia.toUpperCase()}</span>` : ''}
                     </div>
-                    <div style="display: flex; flex-direction: column; gap: 5px;">
-                        ${botaoConcluir}
-                        <button onclick="excluirTarefa('${tarefa.id}', '${tarefa.titulo}')" style="background:var(--danger); padding: 5px 10px;">✕</button>
-                    </div>
-                </div>`;
-        });
+                    <p style="margin: 5px 0; font-size: 13px; color: #64748b;">${tarefa.descricao || ''}</p>
+                    <small style="color: #94a3b8;">📅 ${tarefa.dataEntrega ? tarefa.dataEntrega.split('-').reverse().join('/') : 'Sem data'} | 👤 ${tarefa.atribuidoPara}</small>
+                </div>
+                <div style="display: flex; gap: 5px;">
+                    ${btnConcluir}
+                    ${btnExcluir}
+                </div>
+            </div>`;
     });
 };
 
-window.concluirTarefa = (id) => update(ref(db, `tarefas/${id}`), { status: 'concluida' });
+window.concluirTarefa = (id) => {
+    update(ref(db, `tarefas/${id}`), { 
+        status: 'concluida',
+        dataConclusao: new Date().toISOString() // Adiciona um registro de quando foi feito
+    }).then(() => {
+        // Opcional: Se o próprio funcionário quiser um aviso ao clicar
+        mostrarSucesso("Tarefa marcada como concluída!");
+    });
+};
 
 window.excluirTarefa = function(id, titulo) {
     idParaExcluir = id; // Armazena o ID
@@ -385,6 +493,9 @@ function iniciarMonitorDeNotificacoes(meuEmail) {
         // Regra: Se a tarefa for para mim e estiver pendente
         if (tarefa.atribuidoPara === meuEmail.toLowerCase() && tarefa.status === "pendente") {
             
+            // Toca o som de notificação
+            dispararAvisoSonoro();
+            
             // Verifica se o app está em segundo plano para notificar
             if (document.visibilityState !== 'visible') {
                 new Notification("Nova Tarefa Recebida! 📌", {
@@ -398,9 +509,15 @@ function iniciarMonitorDeNotificacoes(meuEmail) {
     // O 'onChildChanged' detecta quando uma tarefa é CONCLUÍDA
     onChildChanged(tarefasRef, (snapshot) => {
         const tarefa = snapshot.val();
+        const meuEmail = auth.currentUser ? auth.currentUser.email : "";
         
-        // Se EU criei a tarefa e o status mudou para CONCLUÍDA
+        // REGRA: Se EU criei a tarefa e ela foi marcada como 'concluida'
         if (tarefa.criadoPor === meuEmail && tarefa.status === "concluida") {
+            
+            // 1. Notificação Visual (Modal na tela do App)
+            mostrarSucesso(`Tarefa Concluída: "${tarefa.titulo}"`);
+
+            // 2. Notificação de Sistema (Balãozinho/Push)
             if (Notification.permission === "granted") {
                 new Notification("Tarefa Concluída! ✅", {
                     body: `O colaborador finalizou: ${tarefa.titulo}`,
