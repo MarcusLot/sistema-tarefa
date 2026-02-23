@@ -1,7 +1,7 @@
 // Firebase Configuration and Initialization
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getDatabase, ref, push, onValue, query, orderByChild, equalTo, remove, update, set, onChildAdded } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { getDatabase, ref, push, onValue, query, orderByChild, equalTo, remove, update, set, onChildAdded, onChildChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDtq1szmfIRiCGU90mtose_wEWJCpznmMM",
@@ -18,21 +18,46 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
+// Função para permitir login ao apertar Enter
+const inputsLogin = [document.getElementById('emailLogin'), document.getElementById('senhaLogin')];
+
+inputsLogin.forEach(input => {
+    input.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            document.getElementById('btnLogar').click();
+        }
+    });
+});
+
+// Variável global para controle de exclusão
+let idParaExcluir = null;
+
 // Função auxiliar para limpar o email (remover pontos)
 const formatarEmail = (email) => email.replace(/\./g, '_');
 let cargoUsuarioAtual = null;
-
-// --- LOGICA DE LOGIN ---
 window.fazerLogin = function() {
     const email = document.getElementById('emailLogin').value;
     const senha = document.getElementById('senhaLogin').value;
     
     // Pedir permissão de notificação ao fazer login
-    if (Notification.permission !== "granted") {
-        Notification.requestPermission();
-    }
+    solicitarNotificacao();
     
     signInWithEmailAndPassword(auth, email, senha).catch(err => alert("Erro: " + err.message));
+};
+
+// --- SOLICITAR PERMISSÃO DE NOTIFICAÇÃO ---
+window.solicitarNotificacao = () => {
+    // Se já deu permissão antes, não pede de novo
+    if (localStorage.getItem('notificacaoAtiva') === 'true') {
+        return;
+    }
+    
+    Notification.requestPermission().then(perm => {
+        if (perm === "granted") {
+            localStorage.setItem('notificacaoAtiva', 'true');
+            mostrarSucesso("Notificações ativadas!");
+        }
+    });
 };
 
 window.fazerLogout = () => signOut(auth);
@@ -67,17 +92,22 @@ onAuthStateChanged(auth, (user) => {
 
             // Ativa as funções de Admin se for o caso
             if (cargoFinal === 'administrador') {
-                document.getElementById('secaoAdmin').style.display = 'block';
-                document.getElementById('secaoCriarTarefa').style.display = 'block';
+                document.getElementById('botoes-acao').style.display = 'flex';
                 listarUsuariosParaAdmin();
                 carregarListaFuncionarios();
             } else if (cargoFinal === 'gerente') {
-                document.getElementById('secaoCriarTarefa').style.display = 'block';
+                document.getElementById('botoes-acao').style.display = 'flex';
+                // Esconde o botão de usuário para gerentes
+                document.querySelector('button[onclick="abrirModal(\'modalUser\')"]').style.display = 'none';
                 carregarListaFuncionarios();
             }
 
             carregarTarefas(user.email, cargoFinal);
-            iniciarMonitorDeNotificacoes(user.email);
+            
+            // Inicia monitor de notificações só se já deu permissão antes
+            if (localStorage.getItem('notificacaoAtiva') === 'true') {
+                iniciarMonitorDeNotificacoes(user.email);
+            }
         });
     } else {
         document.getElementById('telaLogin').style.display = 'block';
@@ -126,6 +156,8 @@ window.criarUsuarioCompleto = async function() {
         document.getElementById('novoUserNome').value = "";
         document.getElementById('novoUserEmail').value = "";
         document.getElementById('novoUserSenha').value = "";
+        fecharModal('modalUser'); // Fecha o modal após salvar
+        mostrarSucesso(`Dados de ${nome} atualizados com sucesso!`);
         
     } catch (error) {
         alert("Erro ao processar: " + error.message);
@@ -144,6 +176,8 @@ window.removerPermissao = function(emailLimpo) {
 
 // --- FUNÇÃO PARA CARREGAR DADOS NO FORMULÁRIO ---
 window.prepararEdicao = function(emailLimpo) {
+    abrirModal('modalUser'); // Abre a janela quando clica em editar
+    
     onValue(ref(db, `usuarios/${emailLimpo}`), (snapshot) => {
         const dados = snapshot.val();
         const emailOriginal = emailLimpo.replace(/_/g, '.');
@@ -152,10 +186,8 @@ window.prepararEdicao = function(emailLimpo) {
         document.getElementById('novoUserNome').value = dados.nome || "";
         document.getElementById('novoUserEmail').value = emailOriginal;
         document.getElementById('novoUserCargo').value = dados.cargo || dados;
+        document.getElementById('novoUserSenha').value = ""; // Limpa senha para edição
 
-        // Avisa o usuário que ele está editando
-        alert("Dados carregados! Altere o nome ou cargo e clique em 'Cadastrar' para salvar as alterações.");
-        
         // Foca no campo nome para facilitar
         document.getElementById('novoUserNome').focus();
     }, { onlyOnce: true }); 
@@ -209,9 +241,25 @@ function carregarListaFuncionarios() {
     });
 }
 
-// Funções para controlar o Modal
-window.mostrarModal = () => document.getElementById('modalSucesso').style.display = 'block';
-window.fecharModal = () => document.getElementById('modalSucesso').style.display = 'none';
+// Funções para controlar os Modais
+window.abrirModal = function(id) {
+    document.getElementById(id).style.display = 'flex';
+};
+
+window.fecharModal = function(id) {
+    document.getElementById(id).style.display = 'none';
+};
+
+// Modal de Sucesso Universal
+window.mostrarSucesso = function(mensagem) {
+    document.getElementById('mensagemSucesso').innerText = mensagem;
+    abrirModal('modalSucesso');
+    
+    // Fecha sozinho após 3 segundos
+    setTimeout(() => {
+        fecharModal('modalSucesso');
+    }, 3000);
+};
 
 // --- SALVAR TAREFA (Criar para outro) ---
 window.salvarTarefa = function() {
@@ -240,7 +288,8 @@ window.salvarTarefa = function() {
         document.getElementById('titulo').value = "";
         document.getElementById('descricao').value = "";
         document.getElementById('dataEntrega').value = "";
-        mostrarModal(); // Aquele modal de sucesso que criamos
+        fecharModal('modalTarefa'); // Fecha o modal após salvar
+        mostrarSucesso('Tarefa enviada com sucesso!');
     });
 };
 
@@ -296,15 +345,34 @@ function carregarTarefas(meuEmail, cargo) {
                     </div>
                     <div style="display: flex; flex-direction: column; gap: 5px;">
                         ${botaoConcluir}
-                        ${botaoExcluir}
+                        <button onclick="excluirTarefa('${tarefa.id}', '${tarefa.titulo}')" style="background:var(--danger); padding: 5px 10px;">✕</button>
                     </div>
                 </div>`;
         });
     });
-}
+};
 
 window.concluirTarefa = (id) => update(ref(db, `tarefas/${id}`), { status: 'concluida' });
-window.excluirTarefa = (id) => confirm("Excluir esta tarefa?") && remove(ref(db, `tarefas/${id}`));
+
+window.excluirTarefa = function(id, titulo) {
+    idParaExcluir = id; // Armazena o ID
+    document.getElementById('nomeTarefaExcluir').innerText = `"${titulo}"`; // Mostra o nome no modal
+    abrirModal('modalConfirmacao');
+};
+
+// Configura o botão "Sim, Excluir" do modal
+document.getElementById('btnConfirmarExcluir').onclick = function() {
+    if (idParaExcluir) {
+        const tarefaRef = ref(db, `tarefas/${idParaExcluir}`);
+        remove(tarefaRef)
+            .then(() => {
+                fecharModal('modalConfirmacao');
+                mostrarSucesso("Tarefa removida com sucesso!");
+                idParaExcluir = null;
+            })
+            .catch((error) => alert("Erro ao excluir: " + error.message));
+    }
+};
 
 // --- MONITOR DE NOTIFICAÇÕES EM SEGUNDO PLANO ---
 function iniciarMonitorDeNotificacoes(meuEmail) {
@@ -322,6 +390,21 @@ function iniciarMonitorDeNotificacoes(meuEmail) {
                 new Notification("Nova Tarefa Recebida! 📌", {
                     body: `${tarefa.titulo}\nUrgência: ${tarefa.urgencia}`,
                     icon: "https://cdn-icons-png.flaticon.com/512/906/906334.png"
+                });
+            }
+        }
+    });
+    
+    // O 'onChildChanged' detecta quando uma tarefa é CONCLUÍDA
+    onChildChanged(tarefasRef, (snapshot) => {
+        const tarefa = snapshot.val();
+        
+        // Se EU criei a tarefa e o status mudou para CONCLUÍDA
+        if (tarefa.criadoPor === meuEmail && tarefa.status === "concluida") {
+            if (Notification.permission === "granted") {
+                new Notification("Tarefa Concluída! ✅", {
+                    body: `O colaborador finalizou: ${tarefa.titulo}`,
+                    icon: "https://cdn-icons-png.flaticon.com/512/190/190411.png"
                 });
             }
         }
