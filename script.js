@@ -100,12 +100,16 @@ window.solicitarNotificacao = () => {
         return;
     }
     
-    Notification.requestPermission().then(perm => {
-        if (perm === "granted") {
-            localStorage.setItem('notificacaoAtiva', 'true');
-            mostrarSucesso("Notificações ativadas!");
-        }
-    });
+    // Função melhorada para pedir permissão
+    if ("Notification" in window) {
+        Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+                localStorage.setItem('notificacaoAtiva', 'true');
+                mostrarSucesso("Notificações ativadas com sucesso!");
+                console.log("Notificações permitidas!");
+            }
+        });
+    }
 };
 
 window.fazerLogout = () => signOut(auth);
@@ -216,8 +220,6 @@ window.criarUsuarioCompleto = async function() {
             }
         }
 
-        alert(`Dados de ${nome} atualizados com sucesso!`);
-        
         // Limpa os campos
         document.getElementById('novoUserNome').value = "";
         document.getElementById('novoUserEmail').value = "";
@@ -339,7 +341,7 @@ window.mostrarSucesso = function(mensagem) {
     document.getElementById('mensagemSucesso').innerText = mensagem;
     abrirModal('modalSucesso');
     
-    // Fecha sozinho após 3 segundos
+    // Fecha sozinho após 3 segundos para não irritar o usuário no celular
     setTimeout(() => {
         fecharModal('modalSucesso');
     }, 3000);

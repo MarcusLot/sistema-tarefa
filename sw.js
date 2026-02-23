@@ -1,5 +1,5 @@
 // Mude esse número (v1, v2, v3...) sempre que atualizar o site
-const VERSION = 'v1.0.3'; // Lembre de subir a versão aqui!
+const VERSION = 'v1.0.4'; // Lembre de subir a versão aqui!
 const CACHE_NAME = 'tarefas-cache-' + VERSION;
 
 self.addEventListener('install', (event) => {
@@ -57,4 +57,12 @@ self.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'SKIP_WAITING') {
         self.skipWaiting();
     }
+});
+
+// Evento para abrir o app ao clicar na notificação
+self.addEventListener('notificationclick', function(event) {
+    event.notification.close();
+    event.waitUntil(
+        clients.openWindow('/') // Abre o app ao clicar na notificação
+    );
 });

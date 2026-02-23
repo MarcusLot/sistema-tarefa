@@ -249,14 +249,17 @@ button:hover { opacity: 0.9; }
 
 /* Ajustes para Celulares */
 @media (max-width: 600px) {
-    body {
-        padding: 10px; /* Menos borda no celular */
+    /* Ajusta o container para ocupar a tela toda */
+    body { 
+        padding: 0; 
+        background: white; 
     }
-
+    
     .container, #sistema {
-        padding: 15px;
-        border-radius: 0; /* Ocupa a tela toda sem bordinhas redondas nas laterais */
+        max-width: 100%;
+        border-radius: 0;
         box-shadow: none;
+        padding: 15px;
     }
 
     /* Header: Nome em cima, Botão Sair embaixo */
@@ -271,14 +274,18 @@ button:hover { opacity: 0.9; }
         grid-template-columns: 1fr !important; 
     }
 
-    /* Barra de Ações: Botões de Admin empilhados */
+    /* Transforma botões em "Barra Inferior" ou botões largos */
     .botoes-acao {
-        flex-direction: column;
+        display: flex;
+        flex-direction: column; /* Botões um embaixo do outro */
+        gap: 12px;
     }
 
     .botoes-acao button {
+        height: 50px; /* Mais fácil de clicar */
+        font-size: 16px;
+        margin: 0;
         width: 100%; /* Botões largos para facilitar o toque */
-        margin: 5px 0;
     }
 
     /* Cards de Tarefa: Ajusta para não esmagar o texto */
@@ -286,12 +293,13 @@ button:hover { opacity: 0.9; }
         flex-direction: column;
         align-items: flex-start;
         position: relative;
+        padding: 20px;
     }
 
     .tarefa-card div[style*="display: flex"] {
         width: 100%;
-        justify-content: flex-end;
         margin-top: 15px;
+        justify-content: space-around; /* Botões de concluir/excluir lado a lado */
     }
 
     /* Inputs e Modais */
